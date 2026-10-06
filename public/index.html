@@ -1,0 +1,224 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Battle Arena Online</title>
+    <style>
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            background: #070b16;
+            color: #fff;
+            font-family: system-ui, Arial;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh
+        }
+
+        .wrap {
+            width: min(1100px, 100%);
+            padding: 18px
+        }
+
+        .panel {
+            background: #10182b;
+            border: 1px solid #273552;
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 20px 60px #0007
+        }
+
+        .hidden {
+            display: none !important
+        }
+
+        h1 {
+            margin: 0 0 6px;
+            font-size: 34px
+        }
+
+        .sub {
+            color: #91a1bd;
+            margin-bottom: 16px
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap
+        }
+
+        input,
+        button {
+            border: 0;
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 16px
+        }
+
+        input {
+            background: #080e1d;
+            color: white;
+            border: 1px solid #2d3b5a;
+            flex: 1;
+            min-width: 180px
+        }
+
+        button {
+            background: #5ee7ff;
+            color: #041018;
+            font-weight: 800;
+            cursor: pointer
+        }
+
+        button.alt {
+            background: #202d47;
+            color: white
+        }
+
+        .lobby {
+            max-width: 650px;
+            margin: 8vh auto
+        }
+
+        .msg {
+            min-height: 24px;
+            color: #ff7188;
+            margin-top: 10px
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap
+        }
+
+        .room {
+            font-weight: 800;
+            letter-spacing: 2px
+        }
+
+        .game {
+            position: relative
+        }
+
+        .hud {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 10px
+        }
+
+        .pill {
+            background: #111b31;
+            padding: 8px 12px;
+            border-radius: 10px;
+            color: #c8d4eb
+        }
+
+        .canvasWrap {
+            background: #03060d;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #263453
+        }
+
+        .canvas {
+            display: block;
+            width: 100%;
+            height: auto
+        }
+
+        .help {
+            color: #8fa0ba;
+            font-size: 14px;
+            margin-top: 10px
+        }
+
+        .scoreboard {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            background: #0a1020dd;
+            border: 1px solid #30405f;
+            border-radius: 12px;
+            padding: 10px;
+            min-width: 170px;
+            backdrop-filter: blur(6px)
+        }
+
+        .scoreboard div {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin: 3px 0
+        }
+
+        .dead {
+            color: #ff7188;
+            font-weight: 800
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <div id="lobby" class="panel lobby">
+            <h1>⚔️ Battle Arena Online</h1>
+            <div class="sub">Real-time multiplayer • 2–8 players • Share the room code</div>
+            <div class="row"><input id="name" maxlength="16" placeholder="Your name"><button id="create">Create
+                    Room</button></div>
+            <div class="row" style="margin-top:10px"><input id="code" maxlength="5" placeholder="ROOM CODE"><button
+                    class="alt" id="join">Join Room</button></div>
+            <div id="msg" class="msg"></div>
+        </div>
+        <div id="game" class="panel hidden">
+            <div class="top">
+                <div><span class="room">ROOM: <span id="roomCode"></span></span>
+                    <div class="sub" style="margin:4px 0 0">WASD / Arrow keys to move • Mouse/touch to aim • Click/tap
+                        to shoot</div>
+                </div>
+                <div class="row"><button class="alt" id="copy">Copy Invite</button><button class="alt"
+                        id="restart">Restart</button></div>
+            </div>
+            <div class="hud">
+                <div class="pill">Players: <b id="count">0</b></div>
+                <div class="pill">Score: <b id="myScore">0</b></div>
+                <div class="pill" id="status">Ready</div>
+            </div>
+            <div class="canvasWrap"><canvas id="c" class="canvas" width="900" height="600"></canvas>
+                <div id="scores" class="scoreboard"></div>
+            </div>
+            <div class="help">Open this game on multiple devices, use the same room code, and everyone appears
+                instantly. For public internet play, deploy the Node.js app to a host supporting WebSockets.</div>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); const lobby = document.querySelector('#lobby'), game = document.querySelector('#game'), msg = document.querySelector('#msg'), canvas = document.querySelector('#c'), ctx = canvas.getContext('2d'); let me = null, room = '', players = [], shots = [], keys = {};
+        function name() {return document.querySelector('#name').value.trim() || 'Player'}
+        document.querySelector('#create').onclick = () => socket.emit('createRoom', {name: name()}); document.querySelector('#join').onclick = () => socket.emit('joinRoom', {code: document.querySelector('#code').value.trim(), name: name()});
+        socket.on('errorMessage', x => msg.textContent = x); socket.on('joined', x => {room = x.code; me = x.id; lobby.classList.add('hidden'); game.classList.remove('hidden'); document.querySelector('#roomCode').textContent = room; history.replaceState({}, '', location.pathname + '?room=' + room)}); socket.on('state', s => {players = s.players; draw()}); socket.on('tick', s => {players = s.players; shots = s.shots; draw(); updateHud()});
+        function updateHud() {document.querySelector('#count').textContent = players.length; let p = players.find(x => x.id === me); document.querySelector('#myScore').textContent = p?.score || 0; document.querySelector('#status').innerHTML = p && p.hp <= 0 ? '<span class="dead">ELIMINATED</span>' : 'Alive'; document.querySelector('#scores').innerHTML = players.slice().sort((a, b) => b.score - a.score).map(p => `<div><span style="color:${p.color}">● ${esc(p.name)}</span><b>${p.score}</b></div>`).join('')}
+        function esc(s) {return s.replace(/[&<>]/g, m => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[m]))}
+        window.onkeydown = e => {if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {keys[e.key] = 1; send()} }; window.onkeyup = e => {delete keys[e.key]; send()}; function send() {socket.emit('input', {up: keys.w || keys.ArrowUp, down: keys.s || keys.ArrowDown, left: keys.a || keys.ArrowLeft, right: keys.d || keys.ArrowRight})}
+        function shoot(clientX, clientY) {const r = canvas.getBoundingClientRect(), x = (clientX - r.left) * 900 / r.width, y = (clientY - r.top) * 600 / r.height, p = players.find(x => x.id === me); if (!p || p.hp <= 0) return; socket.emit('shoot', {dx: x - p.x, dy: y - p.y})}
+        canvas.onmousedown = e => shoot(e.clientX, e.clientY); canvas.ontouchstart = e => {e.preventDefault(); shoot(e.touches[0].clientX, e.touches[0].clientY)};
+        document.querySelector('#copy').onclick = async () => {const u = location.origin + location.pathname + '?room=' + room; try {await navigator.clipboard.writeText(u + ' — Room ' + room); alert('Invite copied!')} catch {prompt('Copy invite:', u + ' — Room ' + room)} }; document.querySelector('#restart').onclick = () => socket.emit('restart');
+        const q = new URLSearchParams(location.search).get('room'); if (q) {document.querySelector('#code').value = q; msg.textContent = 'Enter your name and click Join Room.'}
+        function draw() {
+            ctx.clearRect(0, 0, 900, 600); let g = ctx.createLinearGradient(0, 0, 900, 600); g.addColorStop(0, '#081226'); g.addColorStop(1, '#03060d'); ctx.fillStyle = g; ctx.fillRect(0, 0, 900, 600); ctx.strokeStyle = '#14213b'; for (let x = 0; x <= 900; x += 50) {ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 600); ctx.stroke()} for (let y = 0; y <= 600; y += 50) {ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(900, y); ctx.stroke()}
+            shots.forEach(s => {ctx.fillStyle = '#fff'; ctx.shadowBlur = 14; ctx.shadowColor = '#fff'; ctx.beginPath(); ctx.arc(s.x, s.y, 5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0}); players.forEach(p => {ctx.globalAlpha = p.hp <= 0 ? .3 : 1; ctx.fillStyle = p.color; ctx.shadowBlur = 18; ctx.shadowColor = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = '#081018'; ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(p.name, p.x, p.y - 28); ctx.fillStyle = '#20283a'; ctx.fillRect(p.x - 24, p.y + 25, 48, 5); ctx.fillStyle = '#5cff9d'; ctx.fillRect(p.x - 24, p.y + 25, 48 * p.hp / 100, 5); ctx.globalAlpha = 1}); updateHud()
+        }
+    </script>
+</body>
+
+</html>
